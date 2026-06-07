@@ -1,0 +1,28 @@
+# Environment — NEVER commit these
+.env
+.env.local
+.env.production
+*.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+dist/
+*.egg-info/
+
+# Node
+node_modules/
+.next/
+out/
+.vercel/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
