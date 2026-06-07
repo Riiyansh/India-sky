@@ -52,7 +52,7 @@ export default function FlightMap({ flights, onSelect, selectedIcao, filter, fol
   const filterRef    = useRef<"all" | "air" | "gnd">("all");
   const followRef    = useRef(false);
   const onSelectRef  = useRef(onSelect);
-  const animRef      = useRef<number>();
+  const animRef      = useRef<number | undefined>(undefined);
 
   // Keep refs up to date on every render — no effect needed
   flightsRef.current  = flights;
