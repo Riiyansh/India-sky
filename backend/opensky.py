@@ -8,16 +8,18 @@ import os
 import base64
 import httpx
 
-BOUNDS = dict(lamin=6, lomin=68, lamax=37, lomax=98)
-DIRECT_URL = "https://opensky-network.org/api/states/all"
+import urllib.parse
 
+BOUNDS      = dict(lamin=6, lomin=68, lamax=37, lomax=98)
+DIRECT_URL  = "https://opensky-network.org/api/states/all"
+OPENSKY_URL = DIRECT_URL + "?" + urllib.parse.urlencode(BOUNDS)
 
-def _proxy_url() -> str:
-    """Use Vercel proxy if FRONTEND_URL is set — Vercel IPs aren't blocked by OpenSky."""
-    frontend = os.environ.get("FRONTEND_URL", "").rstrip("/")
-    if frontend and "localhost" not in frontend:
-        return f"{frontend}/api/opensky"
-    return ""
+# Public CORS proxy services — tried in order until one works
+PROXIES = [
+    f"https://api.allorigins.win/raw?url={urllib.parse.quote(OPENSKY_URL)}",
+    f"https://corsproxy.io/?{urllib.parse.quote(OPENSKY_URL)}",
+    f"https://api.codetabs.com/v1/proxy?quest={urllib.parse.quote(OPENSKY_URL)}",
+]
 
 
 def _auth_header() -> dict:
@@ -30,17 +32,35 @@ def _auth_header() -> dict:
 
 
 async def fetch_flights(client: httpx.AsyncClient) -> list[dict]:
-    proxy = _proxy_url()
-    if proxy:
-        # Fetch via Vercel serverless proxy (bypasses OpenSky cloud IP block)
-        resp = await client.get(proxy, headers={"User-Agent": "Mozilla/5.0"}, timeout=20)
-    else:
-        # Direct fetch (works locally)
-        headers = {"User-Agent": "Mozilla/5.0", **_auth_header()}
-        resp = await client.get(DIRECT_URL, params=BOUNDS, headers=headers, timeout=20)
+    # Try direct first (works locally), then fall back to proxies
+    endpoints = []
 
-    resp.raise_for_status()
-    states = resp.json().get("states") or []
+    # Direct with auth (local dev)
+    if not os.environ.get("USE_PROXY"):
+        endpoints.append(("direct", DIRECT_URL, {"User-Agent": "Mozilla/5.0", **_auth_header()}, BOUNDS))
+
+    # Proxy endpoints (for cloud deployments where OpenSky blocks the IP)
+    for proxy_url in PROXIES:
+        endpoints.append(("proxy", proxy_url, {"User-Agent": "Mozilla/5.0"}, {}))
+
+    last_err = None
+    for kind, url, headers, params in endpoints:
+        try:
+            resp = await client.get(url, params=params, headers=headers, timeout=15)
+            resp.raise_for_status()
+            data = resp.json()
+            states = data.get("states") or []
+            if states:
+                print(f"[opensky] {kind} → {len(states)} flights")
+                break
+        except Exception as e:
+            print(f"[opensky] {kind} failed: {e}")
+            last_err = e
+            states = []
+            continue
+
+    if not states and last_err:
+        raise last_err
 
     flights = []
     for s in states:
