@@ -1,8 +1,10 @@
 /**
- * Vercel serverless proxy for OpenSky Network.
- * Cloud providers (Railway, Render) are blocked by OpenSky.
- * Vercel's IPs are not — so we proxy through here.
+ * Vercel EDGE proxy for OpenSky Network.
+ * Edge runtime runs on Cloudflare's network — NOT AWS Lambda.
+ * Cloudflare IPs are not blocked by OpenSky unlike Railway/Render/Lambda.
  */
+
+export const runtime = "edge";
 
 const OPENSKY_URL =
   "https://opensky-network.org/api/states/all?lamin=6&lomin=68&lamax=37&lomax=98";
@@ -16,7 +18,7 @@ export async function GET() {
   };
 
   if (clientId && clientSecret) {
-    const creds = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+    const creds = btoa(`${clientId}:${clientSecret}`);
     headers["Authorization"] = `Basic ${creds}`;
   }
 

@@ -14,12 +14,12 @@ BOUNDS      = dict(lamin=6, lomin=68, lamax=37, lomax=98)
 DIRECT_URL  = "https://opensky-network.org/api/states/all"
 OPENSKY_URL = DIRECT_URL + "?" + urllib.parse.urlencode(BOUNDS)
 
-# Public CORS proxy services — tried in order until one works
-PROXIES = [
-    f"https://api.allorigins.win/raw?url={urllib.parse.quote(OPENSKY_URL)}",
-    f"https://corsproxy.io/?{urllib.parse.quote(OPENSKY_URL)}",
-    f"https://api.codetabs.com/v1/proxy?quest={urllib.parse.quote(OPENSKY_URL)}",
-]
+# Proxy via Vercel Edge (Cloudflare network — not blocked by OpenSky)
+def _proxies() -> list[str]:
+    frontend = os.environ.get("FRONTEND_URL", "").rstrip("/")
+    if frontend and "localhost" not in frontend:
+        return [f"{frontend}/api/opensky"]
+    return []
 
 
 def _auth_header() -> dict:
@@ -39,8 +39,8 @@ async def fetch_flights(client: httpx.AsyncClient) -> list[dict]:
     if not os.environ.get("USE_PROXY"):
         endpoints.append(("direct", DIRECT_URL, {"User-Agent": "Mozilla/5.0", **_auth_header()}, BOUNDS))
 
-    # Proxy endpoints (for cloud deployments where OpenSky blocks the IP)
-    for proxy_url in PROXIES:
+    # Proxy via Vercel Edge (for cloud deployments where OpenSky blocks the IP)
+    for proxy_url in _proxies():
         endpoints.append(("proxy", proxy_url, {"User-Agent": "Mozilla/5.0"}, {}))
 
     last_err = None
