@@ -86,6 +86,29 @@ async def health():
     return {"status": "ok", "flights": len(latest_flights)}
 
 
+@app.get("/api/debug")
+async def debug():
+    """Manually trigger a fetch and return result — for diagnosing Railway issues."""
+    client_id = os.environ.get("OPENSKY_CLIENT_ID", "NOT SET")
+    client_secret = os.environ.get("OPENSKY_CLIENT_SECRET", "NOT SET")
+    try:
+        flights = await fetch_flights(http_client)
+        global latest_flights
+        latest_flights = flights
+        return {
+            "client_id": client_id,
+            "client_secret_set": client_secret != "NOT SET",
+            "flights_fetched": len(flights),
+            "sample": flights[0] if flights else None
+        }
+    except Exception as e:
+        return {
+            "client_id": client_id,
+            "client_secret_set": client_secret != "NOT SET",
+            "error": str(e)
+        }
+
+
 @app.get("/api/flights")
 async def flights_rest():
     return {"flights": latest_flights, "count": len(latest_flights)}
