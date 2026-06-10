@@ -9,16 +9,20 @@ import base64
 import httpx
 
 BOUNDS = dict(lamin=6, lomin=68, lamax=37, lomax=98)
-API_URL = "https://opensky-network.org/api/states/all"
+DIRECT_URL = "https://opensky-network.org/api/states/all"
+
+
+def _proxy_url() -> str:
+    """Use Vercel proxy if FRONTEND_URL is set — Vercel IPs aren't blocked by OpenSky."""
+    frontend = os.environ.get("FRONTEND_URL", "").rstrip("/")
+    if frontend and "localhost" not in frontend:
+        return f"{frontend}/api/opensky"
+    return ""
+
 
 def _auth_header() -> dict:
-    user = os.environ.get("OPENSKY_USERNAME", "")
-    pwd  = os.environ.get("OPENSKY_PASSWORD", "")
-    # Also support client_id/secret as username/password (same credentials)
-    if not user:
-        user = os.environ.get("OPENSKY_CLIENT_ID", "")
-    if not pwd:
-        pwd = os.environ.get("OPENSKY_CLIENT_SECRET", "")
+    user = os.environ.get("OPENSKY_CLIENT_ID", "")
+    pwd  = os.environ.get("OPENSKY_CLIENT_SECRET", "")
     if user and pwd:
         token = base64.b64encode(f"{user}:{pwd}".encode()).decode()
         return {"Authorization": f"Basic {token}"}
@@ -26,14 +30,15 @@ def _auth_header() -> dict:
 
 
 async def fetch_flights(client: httpx.AsyncClient) -> list[dict]:
-    headers = {"User-Agent": "Mozilla/5.0", **_auth_header()}
-    resp = await client.get(
-        API_URL,
-        params=BOUNDS,
-        headers=headers,
-        timeout=20,
-        follow_redirects=True,
-    )
+    proxy = _proxy_url()
+    if proxy:
+        # Fetch via Vercel serverless proxy (bypasses OpenSky cloud IP block)
+        resp = await client.get(proxy, headers={"User-Agent": "Mozilla/5.0"}, timeout=20)
+    else:
+        # Direct fetch (works locally)
+        headers = {"User-Agent": "Mozilla/5.0", **_auth_header()}
+        resp = await client.get(DIRECT_URL, params=BOUNDS, headers=headers, timeout=20)
+
     resp.raise_for_status()
     states = resp.json().get("states") or []
 
