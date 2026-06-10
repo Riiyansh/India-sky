@@ -102,10 +102,13 @@ async def debug():
             "sample": flights[0] if flights else None
         }
     except Exception as e:
+        import traceback
         return {
             "client_id": client_id,
             "client_secret_set": client_secret != "NOT SET",
-            "error": str(e)
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "traceback": traceback.format_exc()
         }
 
 
