@@ -88,28 +88,16 @@ async def health():
 
 @app.get("/api/debug")
 async def debug():
-    """Manually trigger a fetch and return result — for diagnosing Railway issues."""
-    client_id = os.environ.get("OPENSKY_CLIENT_ID", "NOT SET")
-    client_secret = os.environ.get("OPENSKY_CLIENT_SECRET", "NOT SET")
+    """Manually trigger a fetch — for diagnosing deployment issues."""
+    user = os.environ.get("OPENSKY_CLIENT_ID", "NOT SET")
     try:
         flights = await fetch_flights(http_client)
         global latest_flights
         latest_flights = flights
-        return {
-            "client_id": client_id,
-            "client_secret_set": client_secret != "NOT SET",
-            "flights_fetched": len(flights),
-            "sample": flights[0] if flights else None
-        }
+        return {"user": user, "flights_fetched": len(flights), "sample": flights[0] if flights else None}
     except Exception as e:
         import traceback
-        return {
-            "client_id": client_id,
-            "client_secret_set": client_secret != "NOT SET",
-            "error": str(e),
-            "error_type": type(e).__name__,
-            "traceback": traceback.format_exc()
-        }
+        return {"user": user, "error": str(e), "error_type": type(e).__name__, "traceback": traceback.format_exc()}
 
 
 @app.get("/api/flights")
